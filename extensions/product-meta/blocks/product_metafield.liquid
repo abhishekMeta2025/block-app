@@ -1,0 +1,22 @@
+{% assign product_meta = block.settings.product.metafields.custom.block_test %}
+  <div class="product_meta_block" style="
+  color:{{ block.settings.colour }};
+    padding: 20px;
+    margin: 20px;
+    box-shadow: 0px 0px 8px {{ block.settings.colour }};
+    border-radius: 12px;
+    ">
+    {{ product_meta }}
+  </div>
+
+{% schema %}
+{
+  "name": "Product metafields",
+  "target": "section",
+  "settings": [
+    { "type": "product", "id": "product", "label": "product", "autofill": true },
+    { "type": "color", "id": "colour", "label": "Star Colour", "default": "#ff0000" }
+  ]
+}
+{% endschema %}
+
