@@ -1,243 +1,155 @@
-import { useEffect } from "react";
-import { useFetcher } from "react-router";
-import { useAppBridge } from "@shopify/app-bridge-react";
-import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
+import { useLoaderData, useActionData, Form } from "react-router";
+import { Page, Card, TextField, Button, Banner, FormLayout, BlockStack } from "@shopify/polaris";
+import { useState, useEffect } from "react";
 
-export const loader = async ({ request }) => {
-  await authenticate.admin(request);
+/* ---------------- LOADER ---------------- */
 
-  return null;
-};
-
-export const action = async ({ request }) => {
+export async function loader({ request }) {
   const { admin } = await authenticate.admin(request);
-  const color = ["Red", "Orange", "Yellow", "Green"][
-    Math.floor(Math.random() * 4)
-  ];
-  const response = await admin.graphql(
-    `#graphql
-      mutation populateProduct($product: ProductCreateInput!) {
-        productCreate(product: $product) {
-          product {
-            id
-            title
-            handle
-            status
-            variants(first: 10) {
-              edges {
-                node {
-                  id
-                  price
-                  barcode
-                  createdAt
-                }
-              }
-            }
-          }
-        }
-      }`,
+
+  const response = await admin.graphql(`
     {
-      variables: {
-        product: {
-          title: `${color} Snowboard`,
-        },
-      },
-    },
-  );
-  const responseJson = await response.json();
-  const product = responseJson.data.productCreate.product;
-  const variantId = product.variants.edges[0].node.id;
-  const variantResponse = await admin.graphql(
-    `#graphql
-    mutation shopifyReactRouterTemplateUpdateVariant($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-      productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-        productVariants {
+      shop {
+        id
+        metafield(namespace: "loyalty", key: "points_percentage") {
+          value
+        }
+      }
+    }
+  `);
+
+  const data = await response.json();
+
+  return {
+    shopId: data.data.shop.id,
+    loyalty: data.data.shop.metafield?.value ?? ""
+  };
+}
+
+/* ---------------- ACTION ---------------- */
+
+export async function action({ request }) {
+  const { admin } = await authenticate.admin(request);
+
+  const formData = await request.formData();
+  const loyalty = formData.get("loyalty");
+
+  // Server-side validation: must be a non-negative integer
+  const parsed = parseInt(loyalty, 10);
+  if (loyalty === null || loyalty === "" || isNaN(parsed) || parsed < 0) {
+    return {
+      success: false,
+      error: "Please enter a valid whole number (e.g. 10 for 10%).",
+      loyalty: String(loyalty ?? "")
+    };
+  }
+
+  // Get shop ID
+  const shopResponse = await admin.graphql(`{ shop { id } }`);
+  const shopData = await shopResponse.json();
+  const shopId = shopData.data.shop.id;
+
+  // Save to shop metafield
+  const response = await admin.graphql(
+    `mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
+      metafieldsSet(metafields: $metafields) {
+        metafields {
           id
-          price
-          barcode
-          createdAt
+          namespace
+          key
+          value
+        }
+        userErrors {
+          field
+          message
         }
       }
     }`,
     {
       variables: {
-        productId: product.id,
-        variants: [{ id: variantId, price: "100.00" }],
-      },
-    },
-  );
-  const variantResponseJson = await variantResponse.json();
-
-  return {
-    product: responseJson.data.productCreate.product,
-    variant: variantResponseJson.data.productVariantsBulkUpdate.productVariants,
-  };
-};
-
-export default function Index() {
-  const fetcher = useFetcher();
-  const shopify = useAppBridge();
-  const isLoading =
-    ["loading", "submitting"].includes(fetcher.state) &&
-    fetcher.formMethod === "POST";
-
-  useEffect(() => {
-    if (fetcher.data?.product?.id) {
-      shopify.toast.show("Product created");
+        metafields: [
+          {
+            namespace: "loyalty",
+            key: "points_percentage",
+            type: "number_integer",
+            ownerId: shopId,
+            value: String(parsed)
+          }
+        ]
+      }
     }
-  }, [fetcher.data?.product?.id, shopify]);
-  const generateProduct = () => fetcher.submit({}, { method: "POST" });
-
-  return (
-    <s-page heading="Shopify app template">
-      <s-button slot="primary-action" onClick={generateProduct}>
-        Generate a product
-      </s-button>
-
-      <s-section heading="Congrats on creating a new Shopify app 🎉">
-        <s-paragraph>
-          This embedded app template uses{" "}
-          <s-link
-            href="https://shopify.dev/docs/apps/tools/app-bridge"
-            target="_blank"
-          >
-            App Bridge
-          </s-link>{" "}
-          interface examples like an{" "}
-          <s-link href="/app/additional">additional page in the app nav</s-link>
-          , as well as an{" "}
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql"
-            target="_blank"
-          >
-            Admin GraphQL
-          </s-link>{" "}
-          mutation demo, to provide a starting point for app development.
-        </s-paragraph>
-      </s-section>
-      <s-section heading="Get started with products">
-        <s-paragraph>
-          Generate a product with GraphQL and get the JSON output for that
-          product. Learn more about the{" "}
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql/latest/mutations/productCreate"
-            target="_blank"
-          >
-            productCreate
-          </s-link>{" "}
-          mutation in our API references.
-        </s-paragraph>
-        <s-stack direction="inline" gap="base">
-          <s-button
-            onClick={generateProduct}
-            {...(isLoading ? { loading: true } : {})}
-          >
-            Generate a product
-          </s-button>
-          {fetcher.data?.product && (
-            <s-button
-              onClick={() => {
-                shopify.intents.invoke?.("edit:shopify/Product", {
-                  value: fetcher.data?.product?.id,
-                });
-              }}
-              target="_blank"
-              variant="tertiary"
-            >
-              Edit product
-            </s-button>
-          )}
-        </s-stack>
-        {fetcher.data?.product && (
-          <s-section heading="productCreate mutation">
-            <s-stack direction="block" gap="base">
-              <s-box
-                padding="base"
-                borderWidth="base"
-                borderRadius="base"
-                background="subdued"
-              >
-                <pre style={{ margin: 0 }}>
-                  <code>{JSON.stringify(fetcher.data.product, null, 2)}</code>
-                </pre>
-              </s-box>
-
-              <s-heading>productVariantsBulkUpdate mutation</s-heading>
-              <s-box
-                padding="base"
-                borderWidth="base"
-                borderRadius="base"
-                background="subdued"
-              >
-                <pre style={{ margin: 0 }}>
-                  <code>{JSON.stringify(fetcher.data.variant, null, 2)}</code>
-                </pre>
-              </s-box>
-            </s-stack>
-          </s-section>
-        )}
-      </s-section>
-
-      <s-section slot="aside" heading="App template specs">
-        <s-paragraph>
-          <s-text>Framework: </s-text>
-          <s-link href="https://reactrouter.com/" target="_blank">
-            React Router
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>Interface: </s-text>
-          <s-link
-            href="https://shopify.dev/docs/api/app-home/using-polaris-components"
-            target="_blank"
-          >
-            Polaris web components
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>API: </s-text>
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql"
-            target="_blank"
-          >
-            GraphQL
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>Database: </s-text>
-          <s-link href="https://www.prisma.io/" target="_blank">
-            Prisma
-          </s-link>
-        </s-paragraph>
-      </s-section>
-
-      <s-section slot="aside" heading="Next steps">
-        <s-unordered-list>
-          <s-list-item>
-            Build an{" "}
-            <s-link
-              href="https://shopify.dev/docs/apps/getting-started/build-app-example"
-              target="_blank"
-            >
-              example app
-            </s-link>
-          </s-list-item>
-          <s-list-item>
-            Explore Shopify&apos;s API with{" "}
-            <s-link
-              href="https://shopify.dev/docs/apps/tools/graphiql-admin-api"
-              target="_blank"
-            >
-              GraphiQL
-            </s-link>
-          </s-list-item>
-        </s-unordered-list>
-      </s-section>
-    </s-page>
   );
+
+  const data = await response.json();
+  const result = data?.data?.metafieldsSet;
+  const userErrors = result?.userErrors ?? [];
+
+  if (userErrors.length > 0) {
+    return {
+      success: false,
+      error: userErrors.map((e) => e.message).join(" "),
+      loyalty: String(parsed)
+    };
+  }
+
+  const savedValue = result?.metafields?.[0]?.value ?? String(parsed);
+  return { success: true, loyalty: savedValue, error: null };
 }
 
-export const headers = (headersArgs) => {
-  return boundary.headers(headersArgs);
-};
+/* ---------------- COMPONENT ---------------- */
+
+export default function Index() {
+  const { loyalty } = useLoaderData();
+  const actionData = useActionData();
+  const [value, setValue] = useState(String(loyalty ?? ""));
+  const [dismissed, setDismissed] = useState(false);
+
+  // Sync field with saved value after action
+  useEffect(() => {
+    if (actionData?.loyalty != null) {
+      setValue(String(actionData.loyalty));
+      setDismissed(false);
+    }
+  }, [actionData]);
+
+  return (
+    <Page title="Loyalty Points Settings">
+      <BlockStack gap="400">
+        {actionData?.success && !dismissed && (
+          <Banner tone="success" onDismiss={() => setDismissed(true)}>
+            Loyalty percentage saved! The storefront loyalty block will now use this value.
+          </Banner>
+        )}
+        {actionData?.error && (
+          <Banner tone="critical" onDismiss={() => setDismissed(true)}>
+            {actionData.error}
+          </Banner>
+        )}
+        <Card>
+          {/* Use React Router <Form> — required for embedded apps so App Bridge auth is preserved */}
+          <Form method="post">
+            <FormLayout>
+              <TextField
+                label="Loyalty points percentage"
+                name="loyalty"
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                value={value}
+                onChange={setValue}
+                autoComplete="off"
+                suffix="%"
+                helpText="Customers earn this percentage of the product price as loyalty points. E.g. enter 10 for 10%."
+              />
+              <Button submit variant="primary">
+                Save
+              </Button>
+            </FormLayout>
+          </Form>
+        </Card>
+      </BlockStack>
+    </Page>
+  );
+}

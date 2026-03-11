@@ -1,3 +1,7 @@
+[[extensions]]
 name = "product-meta"
+handle = "product-meta"
 type = "theme"
 uid = "d3fb352b-0c8d-6ac6-c22d-ee63894fc5011a8e5a92"
+
+[extensions.development]
