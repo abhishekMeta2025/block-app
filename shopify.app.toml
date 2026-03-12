@@ -22,7 +22,12 @@ api_version = "2026-04"
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 # Note: read_metafields / write_metafields are NOT valid declared scopes in Shopify — Admin API metafield access is implicit for authenticated embedded apps.
-scopes = "write_products, read_metaobjects, write_metaobjects, read_metaobject_definitions, write_metaobject_definitions, customer_read_metaobjects, unauthenticated_read_metaobjects"
+scopes = "write_products, read_discounts, write_discounts, read_metaobjects, write_metaobjects, read_metaobject_definitions, write_metaobject_definitions, customer_read_metaobjects, unauthenticated_read_metaobjects"
+
+[app_proxy]
+url = "https://example.com/api/proxy"
+subpath = "block-loyalty"
+prefix = "apps"
 
 [auth]
 redirect_urls = [ "https://example.com/api/auth" ]

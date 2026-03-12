@@ -1,6 +1,8 @@
 {% comment %}
   Loyalty block: reads percentage from shop metafield (set in app admin)
   and shows points the customer can earn based on product price.
+  When the checkbox is checked, calls the app server (via App Proxy)
+  to generate a discount code and displays it.
 {% endcomment %}
 
 {% assign points_percentage = shop.metafields.loyalty.points_percentage.value %}
@@ -11,7 +13,77 @@
 
   <div class="loyalty-points" style="margin: 12px 0; padding: 10px 14px; background: #f5f5f5; border-left: 4px solid #008060; border-radius: 4px; font-size: 14px;">
     🎁 Earn <strong>{{ points | round }}</strong> loyalty points on this purchase.
+
+    <label for="loyalty_discount" style="display: flex; align-items: center; gap: 8px; margin-top: 8px; cursor: pointer;">
+      <input
+        type="checkbox"
+        name="loyalty_discount"
+        value="{{ points | round }}"
+        id="loyalty_discount"
+        style="width: 16px; height: 16px; cursor: pointer;"
+      />
+      <span>Redeem as a discount code</span>
+    </label>
+
+    <div class="loyalty-discount-code" id="loyalty-discount-code-display" style="margin-top: 8px;"></div>
   </div>
+
+  <script>
+    (function () {
+      const checkbox = document.getElementById('loyalty_discount');
+      const display  = document.getElementById('loyalty-discount-code-display');
+      if (!checkbox || !display) return;
+
+      checkbox.addEventListener('change', async function () {
+        if (!this.checked) {
+          display.innerHTML = '';
+          return;
+        }
+
+        const points = encodeURIComponent(this.value);
+        display.innerHTML = '<em style="color:#555;">⏳ Generating your discount code…</em>';
+
+        try {
+          const res = await fetch(
+            '/apps/block-loyalty?points=' + points,
+            {
+              method: 'GET',
+              headers: { 'Content-Type': 'application/json' },
+            }
+          );
+
+          const json = await res.json();
+
+          if (!res.ok || json.error) {
+            display.innerHTML =
+              '<span style="color:#cc0000;">⚠️ ' +
+              (json.error || 'Could not generate discount. Please try again.') +
+              '</span>';
+            return;
+          }
+
+          display.innerHTML =
+            '<div style="margin-top:6px; padding:8px 12px; background:#e6f4ea; border:1px solid #008060; border-radius:4px;">' +
+              '<span style="font-size:12px; color:#555;">' + json.title + '</span><br>' +
+              '<strong id="loyalty-code-value" style="font-size:16px; letter-spacing:2px; color:#1a1a1a;">' + json.code + '</strong>' +
+              ' <button ' +
+                'onclick="navigator.clipboard.writeText(\'' + json.code + '\').then(function(){' +
+                  'document.getElementById(\'loyalty-copy-btn\').textContent=\'Copied!\';' +
+                  'setTimeout(function(){document.getElementById(\'loyalty-copy-btn\').textContent=\'Copy\';},2000);' +
+                '})" ' +
+                'id="loyalty-copy-btn" ' +
+                'style="margin-left:8px; padding:2px 10px; font-size:12px; cursor:pointer; border:1px solid #008060; border-radius:4px; background:#fff; color:#008060;"' +
+              '>Copy</button>' +
+              '<br><span style="font-size:11px; color:#666;">Apply this code at checkout to get your loyalty discount.</span>' +
+            '</div>';
+
+        } catch (err) {
+          display.innerHTML =
+            '<span style="color:#cc0000;">⚠️ Network error. Please try again.</span>';
+        }
+      });
+    })();
+  </script>
 {% endif %}
 
 {% schema %}
