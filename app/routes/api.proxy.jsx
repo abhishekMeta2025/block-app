@@ -9,22 +9,29 @@ import { authenticate } from "../shopify.server";
  */
 export async function loader({ request }) {
   // ── 1. Authenticate the App Proxy request ──────────────────────────────
+  // NOTE: authenticate.public.appProxy() throws a Response (not an Error)
+  // when HMAC is invalid (e.g. direct browser access). Re-throw it so Remix
+  // handles it correctly. Only catch real errors.
   let admin;
   try {
     const result = await authenticate.public.appProxy(request);
     admin = result.admin;
   } catch (err) {
+    // If Shopify threw a Response (redirect/error), pass it through
+    if (err instanceof Response) throw err;
     console.error("[proxy] Auth error:", err);
     return Response.json(
-      { error: "Proxy authentication failed: " + err.message },
+      { error: "Proxy authentication failed: " + (err?.message ?? String(err)) },
       { status: 401 }
     );
   }
 
   if (!admin) {
-    console.error("[proxy] admin is undefined after auth — session may be missing");
+    // admin is only available if merchant has an active session stored in DB.
+    // This usually means the app wasn't installed / session is missing on Render.
+    console.error("[proxy] admin is undefined — app may not be installed or session DB is empty");
     return Response.json(
-      { error: "No admin session found. Please reinstall the app." },
+      { error: "App session not found. Please open the app in Shopify Admin and reinstall if needed." },
       { status: 401 }
     );
   }
