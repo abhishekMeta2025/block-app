@@ -2,7 +2,7 @@
 
 client_id = "d72b43d131b92e9ad7e094def4b265d6"
 name = "block-test"
-application_url = "https://example.com"
+application_url = "https://block-app-0n8g.onrender.com"
 embedded = true
 
 [build]
@@ -25,9 +25,9 @@ api_version = "2026-04"
 scopes = "write_products, read_discounts, write_discounts, read_metaobjects, write_metaobjects, read_metaobject_definitions, write_metaobject_definitions, customer_read_metaobjects, unauthenticated_read_metaobjects"
 
 [app_proxy]
-url = "https://example.com/api/proxy"
+url = "https://block-app-0n8g.onrender.com/api/proxy"
 subpath = "block-loyalty"
 prefix = "apps"
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [ "https://block-app-0n8g.onrender.com/api/auth" ]
