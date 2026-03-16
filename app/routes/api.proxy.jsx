@@ -36,15 +36,12 @@ export async function action({ request }) {
     );
   }
 
-  // ── 2. Parse & validate request body ────────────────────────────────────
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    return Response.json({ error: "Invalid JSON body." }, { status: 400 });
-  }
-
-  const pointsParam = body?.points;
+  // ── 2. Parse & validate query param ────────────────────────────────────
+  // NOTE: authenticate.public.appProxy() consumes the request body stream,
+  // so request.json() would fail. Read `points` from the URL search params
+  // instead — safe to read at any point regardless of HTTP method.
+  const url = new URL(request.url);
+  const pointsParam = url.searchParams.get("points");
   const points = parseInt(pointsParam, 10);
 
   if (!pointsParam || isNaN(points) || points <= 0) {
