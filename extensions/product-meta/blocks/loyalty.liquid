@@ -31,8 +31,11 @@
   <script>
     (function () {
       const checkbox = document.getElementById('loyalty_discount');
+      const label    = document.querySelector('label[for="loyalty_discount"]');
       const display  = document.getElementById('loyalty-discount-code-display');
       if (!checkbox || !display) return;
+
+      let codeGenerated = false; // prevent duplicate API calls after success
 
       checkbox.addEventListener('change', async function () {
         if (!this.checked) {
@@ -40,24 +43,35 @@
           return;
         }
 
-        const points = encodeURIComponent(this.value);
+        // Already generated — don't call the API again
+        if (codeGenerated) return;
+
+        // ── Loading state ──
+        checkbox.disabled = true;
+        if (label) label.style.opacity = '0.6';
         display.innerHTML = '<em style="color:#555;">⏳ Generating your discount code…</em>';
+
+        const points = encodeURIComponent(this.value);
 
         try {
           const res = await fetch(
             '/apps/block-loyalty?points=' + points,
             {
               method: 'POST',
-              headers: { 
+              headers: {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json' 
-              },
+                'Accept': 'application/json'
+              }
             }
           );
 
           const json = await res.json();
 
           if (!res.ok || json.error) {
+            // ── Error: restore checkbox so user can retry ──
+            checkbox.checked  = false;
+            checkbox.disabled = false;
+            if (label) label.style.opacity = '1';
             display.innerHTML =
               '<span style="color:#cc0000;">⚠️ ' +
               (json.error || 'Could not generate discount. Please try again.') +
@@ -65,22 +79,31 @@
             return;
           }
 
+          // ── Success: lock checkbox and show code ──
+          codeGenerated = true;
+          if (label) label.style.opacity = '1';
+
           display.innerHTML =
-            '<div style="margin-top:6px; padding:8px 12px; background:#e6f4ea; border:1px solid #008060; border-radius:4px;">' +
-              '<span style="font-size:12px; color:#555;">' + json.title + '</span><br>' +
-              '<strong id="loyalty-code-value" style="font-size:16px; letter-spacing:2px; color:#1a1a1a;">' + json.code + '</strong>' +
+            '<div style="margin-top:6px; padding:10px 14px; background:#e6f4ea; border:1px solid #008060; border-radius:4px;">' +
+              '<span style="font-size:12px; color:#555;">' + (json.title || 'Your Loyalty Discount') + '</span><br>' +
+              '<strong id="loyalty-code-value" style="font-size:18px; letter-spacing:2px; color:#1a1a1a;">' + json.code + '</strong>' +
               ' <button ' +
                 'onclick="navigator.clipboard.writeText(\'' + json.code + '\').then(function(){' +
-                  'document.getElementById(\'loyalty-copy-btn\').textContent=\'Copied!\';' +
-                  'setTimeout(function(){document.getElementById(\'loyalty-copy-btn\').textContent=\'Copy\';},2000);' +
+                  'var b=document.getElementById(\'loyalty-copy-btn\');' +
+                  'b.textContent=\'Copied!\';' +
+                  'setTimeout(function(){b.textContent=\'Copy\';},2000);' +
                 '})" ' +
                 'id="loyalty-copy-btn" ' +
                 'style="margin-left:8px; padding:2px 10px; font-size:12px; cursor:pointer; border:1px solid #008060; border-radius:4px; background:#fff; color:#008060;"' +
               '>Copy</button>' +
-              '<br><span style="font-size:11px; color:#666;">Apply this code at checkout to get your loyalty discount.</span>' +
+              '<br><span style="font-size:11px; color:#666; margin-top:4px; display:block;">Single-use code — apply at checkout to get your loyalty discount.</span>' +
             '</div>';
 
         } catch (err) {
+          // ── Network error: restore checkbox so user can retry ──
+          checkbox.checked  = false;
+          checkbox.disabled = false;
+          if (label) label.style.opacity = '1';
           display.innerHTML =
             '<span style="color:#cc0000;">⚠️ Network error. Please try again.</span>';
         }

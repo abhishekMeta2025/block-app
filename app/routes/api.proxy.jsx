@@ -88,12 +88,13 @@ export async function action({ request }) {
             title: discountTitle,
             code: discountCode,
             startsAt,
-            customerSelection: { allCustomers: true },
+            customerSelection: { all: true },
             customerGets: {
               value: { percentage },
               items: { all: true },
             },
-            appliesOncePerCustomer: false,
+            usageLimit: 1,
+            appliesOncePerCustomer: true,
           },
         },
       }
@@ -136,7 +137,7 @@ export async function action({ request }) {
   const title = codeDiscount?.title ?? discountTitle;
 
   return Response.json(
-    { code, title },
+    { code, title, discountCode: code },
     {
       headers: {
         "Content-Type": "application/json",
