@@ -7,7 +7,7 @@ import { authenticate } from "../shopify.server";
  *
  * Returns JSON: { code, title } on success, or { error } on failure.
  */
-export async function loader({ request }) {
+export async function action({ request }) {
   // ── 1. Authenticate the App Proxy request ──────────────────────────────
   // NOTE: authenticate.public.appProxy() throws a Response (not an Error)
   // when HMAC is invalid (e.g. direct browser access). Re-throw it so Remix
@@ -36,9 +36,15 @@ export async function loader({ request }) {
     );
   }
 
-  // ── 2. Parse & validate query param ────────────────────────────────────
-  const url = new URL(request.url);
-  const pointsParam = url.searchParams.get("points");
+  // ── 2. Parse & validate request body ────────────────────────────────────
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
+
+  const pointsParam = body?.points;
   const points = parseInt(pointsParam, 10);
 
   if (!pointsParam || isNaN(points) || points <= 0) {

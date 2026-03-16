@@ -45,10 +45,14 @@
 
         try {
           const res = await fetch(
-            '/apps/block-loyalty?points=' + points,
+            '/apps/block-loyalty',
             {
-              method: 'GET',
-              headers: { 'Content-Type': 'application/json' },
+              method: 'POST',
+              headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json' 
+              },
+              body: JSON.stringify({ points }),
             }
           );
 
